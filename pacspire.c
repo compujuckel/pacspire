@@ -427,19 +427,26 @@ int main(int argc, char** argv)
 	if(argc > 1)
 	{
 		debug("attempting to install package %s\n",argv[1]);
-		installPackage(argv[1]);
+		if(installPackage(argv[1]) == -1)
+			show_msgbox("pacspire","The installation failed. Read the log for more details.");
+		else
+			show_msgbox("pacspire","The installation was successful.");
 	}
 	else
 	{
 		debug("registering .pcs extension...");
-		cfg_register_fileext("pcs","pacspire install");
+		cfg_register_fileext("pcs","pacspire");
 		success(" done\n");
 		show_msgbox("pacspire","pacspire has been installed. Click on a package to install it.");
 	}
 	
 	#ifdef DEBUG
+	debug("Press any key to exit...");
+	nio_fflush(nio_get_default());
 	nio_free_stdio();
 	wait_key_pressed();
 	#endif
+	
+	refresh_osscr();
 	return 0;
 }
