@@ -194,6 +194,27 @@ int writeFileContent(const char* filename, void* buffer, size_t count)
 	return 0;
 }
 
+void createDir(const char *dir) {
+	char tmp[100];
+	char *p = NULL;
+	size_t len;
+
+	strncpy(tmp,dir,100);
+	len = strlen(tmp);
+	if(tmp[len - 1] == '/' || tmp[len - 1] == '\\')
+		tmp[len - 1] = '\0';
+		
+	for(p = tmp + 1; *p; p++)
+	{
+		if(*p == '/' || *p == '\\') {
+			*p = '\0';
+			mkdir(tmp, 0755);
+			*p = '/';
+		}
+	}
+	mkdir(tmp, 0755);
+}
+
 int removeDir(char* directory)
 {
 	DIR* dir;
@@ -307,8 +328,6 @@ int installPackage(char* file)
 			return -1;
 		}
 		success(" done\n");
-		
-		debug("%s\n",buffer);
 		
 		debug("parsing installed pkginfo.txt...");
 		pkginfo* p2 = parsePackageInfo(buffer);
@@ -476,6 +495,10 @@ int main(int argc, char** argv)
 	}
 	else
 	{
+		debug("creating PACSPIRE_ROOT directory (%s)...",PACSPIRE_ROOT);
+		createDir(PACSPIRE_ROOT);
+		success(" done\n");
+		
 		debug("registering .pcs extension...");
 		cfg_register_fileext("pcs","pacspire");
 		success(" done\n");
