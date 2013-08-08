@@ -91,12 +91,10 @@ pkginfo* parsePackageInfo(char* buffer)
 			p->ext_count++;
 			p->extensions = realloc(p->extensions,p->ext_count*sizeof(fileext));
 			strncpy(p->extensions[p->ext_count-1].extension,&line[delimiter_pos+1],15);
-			uart_printf("Found extension with name %s\n",&line[delimiter_pos+1]);
 		}
 		else if(strcmp(line, "ext_prog") == 0)
 		{
 			strncpy(p->extensions[p->ext_count-1].program,&line[delimiter_pos+1],15);
-			uart_printf("Found extension with prog %s\n",&line[delimiter_pos+1]);
 		}
 		else
 		{
@@ -115,15 +113,6 @@ pkginfo* parsePackageInfo(char* buffer)
 		return NULL;
 	}
 	
-	uart_printf("Number of extensions: %d\n",p->ext_count);
-	if(p->ext_count > 0)
-	{
-		int i;
-		for(i = 0; i < p->ext_count; i++)
-		{
-			uart_printf(".%s -> %s\n",p->extensions[i].extension,p->extensions[i].program);
-		}
-	}
 	return p;
 }
 
