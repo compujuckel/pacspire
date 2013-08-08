@@ -8,9 +8,17 @@ const char PACSPIRE_ROOT[] = "/documents/pacspire";
 
 typedef struct
 {
+	char extension[15];
+	char program[15];
+} fileext;
+
+typedef struct
+{
 	char name[21];
 	char version[11];
 	unsigned int timestamp;
+	int ext_count;
+	fileext *extensions;
 } pkginfo;
 
 #ifdef DEBUG
@@ -41,6 +49,8 @@ pkginfo* parsePackageInfo(char* buffer)
 	p->name[0] = '\0';
 	p->version[0] = '\0';
 	p->timestamp = 0;
+	p->ext_count = 0;
+	p->extensions = NULL;
 	
 	line = strtok(buffer,"\r\n");
 	while(line != NULL)
@@ -50,6 +60,7 @@ pkginfo* parsePackageInfo(char* buffer)
 		int delimiter_pos = strcspn(line,"=");
 		if(delimiter_pos == len)
 		{
+			free(p->extensions);
 			free(p);
 			return NULL;
 		}
@@ -70,12 +81,26 @@ pkginfo* parsePackageInfo(char* buffer)
 			p->timestamp = (unsigned int)strtoul(&line[delimiter_pos+1],NULL,0);
 			if(p->timestamp == 0)
 			{
+				free(p->extensions);
 				free(p);
 				return NULL;
 			}
 		}
+		else if(strcmp(line, "ext_name") == 0)
+		{
+			p->ext_count++;
+			p->extensions = realloc(p->extensions,p->ext_count*sizeof(fileext));
+			strncpy(p->extensions[p->ext_count-1].extension,&line[delimiter_pos+1],15);
+			uart_printf("Found extension with name %s\n",&line[delimiter_pos+1]);
+		}
+		else if(strcmp(line, "ext_prog") == 0)
+		{
+			strncpy(p->extensions[p->ext_count-1].program,&line[delimiter_pos+1],15);
+			uart_printf("Found extension with prog %s\n",&line[delimiter_pos+1]);
+		}
 		else
 		{
+			free(p->extensions);
 			free(p);
 			return NULL;
 		}
@@ -85,10 +110,20 @@ pkginfo* parsePackageInfo(char* buffer)
 	
 	if(p->name[0] == '\0' || p->version[0] == '\0' || p->timestamp == 0)
 	{
+		free(p->extensions);
 		free(p);
 		return NULL;
 	}
 	
+	uart_printf("Number of extensions: %d\n",p->ext_count);
+	if(p->ext_count > 0)
+	{
+		int i;
+		for(i = 0; i < p->ext_count; i++)
+		{
+			uart_printf(".%s -> %s\n",p->extensions[i].extension,p->extensions[i].program);
+		}
+	}
 	return p;
 }
 
@@ -334,6 +369,7 @@ int installPackage(char* file)
 		if(removeDir(full_path) == -1)
 		{
 			debug(" failed\n");
+			free(p);
 			unzClose(uf);
 			return -1;
 		}
@@ -347,6 +383,7 @@ int installPackage(char* file)
 		if(show_msgbox_2b("pacspire",message,"Install","Cancel") == 2)
 		{
 			fail("Installation aborted by user\n");
+			free(p);
 			unzClose(uf);
 			return -1;
 		}
@@ -362,6 +399,7 @@ int installPackage(char* file)
 		else
 		{
 			fail(" failed\n");
+			free(p);
 			unzClose(uf);
 			return -1;
 		}
@@ -372,6 +410,7 @@ int installPackage(char* file)
 	if(unzGoToFirstFile(uf) != UNZ_OK)
 	{
 		fail(" failed\n");
+		free(p);
 		unzClose(uf);
 		return -1;
 	}
@@ -388,6 +427,7 @@ int installPackage(char* file)
 		if(buffer == NULL)
 		{
 			fail(" failed\n");
+			free(p);
 			unzClose(uf);
 			return -1;
 		}
@@ -402,6 +442,7 @@ int installPackage(char* file)
 		{
 			fail(" failed\n");
 			free(buffer);
+			free(p);
 			unzClose(uf);
 			return -1;
 		}
@@ -411,6 +452,18 @@ int installPackage(char* file)
 	}
 	while(unzGoToNextFile(uf) == UNZ_OK);
 	
+	if(p->ext_count > 0)
+	{
+		int i;
+		for(i = 0; i < p->ext_count; i++)
+		{
+			debug("Registering extension %s for %s...",p->extensions[i].extension,p->extensions[i].program);
+			cfg_register_fileext(p->extensions[i].extension,p->extensions[i].program);
+			success(" done\n");
+		}
+	}
+	
+	free(p);
 	unzClose(uf);
 	return 0;
 }
