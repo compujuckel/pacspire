@@ -487,15 +487,15 @@ int installPackage(char* file)
 
 int main(int argc, char** argv)
 {
-	nio_console c;
+	assert_ndless_rev(797);
 	
+	nio_console c;
 	#if DEBUG_CONSOLE == 1
 	clrscr();
 	nio_init(&c,NIO_MAX_COLS,NIO_MAX_ROWS,0,0,NIO_COLOR_WHITE,NIO_COLOR_BLACK,TRUE);
 	#else
 	nio_init(&c,NIO_MAX_COLS,NIO_MAX_ROWS,0,0,NIO_COLOR_WHITE,NIO_COLOR_BLACK,FALSE);
 	#endif
-	
 	nio_set_default(&c);
 	
 	debug("pacspire (%s %s)\n",__DATE__,__TIME__);
