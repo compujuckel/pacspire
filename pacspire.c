@@ -342,33 +342,25 @@ int installPackage(char* file)
 		success(" done\n");
 		
 		debug("checking if the package is newer than the installed version...");
+		char message[200];
 		if(p->timestamp > p2->timestamp)
 		{
 			success(" yes\n");
-			char message[50];
 			sprintf(message,"Do you want to update %s (%s -> %s)?",p->name,p2->version,p->version);
-			if(show_msgbox_2b("pacspire",message,"Update","Cancel") == 2)
-			{
-				fail("Installation aborted by user\n");
-				free(p);
-				free(p2);
-				unzClose(uf);
-				return -1;
-			}
 		}
 		else
 		{
 			warn(" no\n");
-			char message[50];
-			sprintf(message,"The installed version of %s (%s) is newer than the one you are trying to install (%s). Continue?",p->name,p2->version,p->version);
-			if(show_msgbox_2b("pacspire",message,"Continue","Cancel") == 2)
-			{
-				fail("Installation aborted by user\n");
-				free(p);
-				free(p2);
-				unzClose(uf);
-				return -1;
-			}
+			sprintf(message,"The installed version of %s (%s) is newer than the one you are trying to install (%s). Continue?",p->name,p2->version,p->version);	
+		}
+		
+		if(show_msgbox_2b("pacspire",message,"Yes","No") == 2)
+		{
+			fail("Installation aborted by user\n");
+			free(p);
+			free(p2);
+			unzClose(uf);
+			return -1;
 		}
 		
 		free(p2);
