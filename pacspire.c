@@ -1,9 +1,8 @@
 #include <os.h>
 #include "unzip.h"
-#define NIO_REPLACE_STDIO
 #include <nspireio.h>
 
-#define DEBUG
+#define DEBUG_CONSOLE 1
 const char PACSPIRE_ROOT[] = "/documents/pacspire";
 
 typedef struct
@@ -21,26 +20,21 @@ typedef struct
 	fileext *extensions;
 } pkginfo;
 
-#ifdef DEBUG
-#	define debug(s, ...) printf(s, ##__VA_ARGS__)
-#	define success(s, ...) \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_GREEN); \
-		printf(s, ##__VA_ARGS__); \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
-#	define warn(s, ...) \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_YELLOW); \
-		printf(s, ##__VA_ARGS__); \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
-#	define fail(s, ...) \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_RED); \
-		printf(s, ##__VA_ARGS__); \
-		nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
-#else
-#	define debug(s, ...)
-#	define success(s, ...)
-#	define warn(s, ...)
-#	define fail(s, ...)
-#endif
+
+#define debug(s, ...) \
+	nio_printf(s, ##__VA_ARGS__)
+#define success(s, ...) \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_GREEN); \
+	nio_printf(s, ##__VA_ARGS__); \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
+#define warn(s, ...) \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_YELLOW); \
+	nio_printf(s, ##__VA_ARGS__); \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
+#define fail(s, ...) \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_RED); \
+	nio_printf(s, ##__VA_ARGS__); \
+	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
 
 pkginfo* parsePackageInfo(char* buffer)
 {
@@ -470,10 +464,16 @@ int installPackage(char* file)
 
 int main(int argc, char** argv)
 {
-	#ifdef DEBUG
+	nio_console c;
+	
+	#if DEBUG_CONSOLE == 1
 	clrscr();
-	nio_use_stdio();
+	nio_init(&c,NIO_MAX_COLS,NIO_MAX_ROWS,0,0,NIO_COLOR_WHITE,NIO_COLOR_BLACK,TRUE);
+	#else
+	nio_init(&c,NIO_MAX_COLS,NIO_MAX_ROWS,0,0,NIO_COLOR_WHITE,NIO_COLOR_BLACK,FALSE);
 	#endif
+	
+	nio_set_default(&c);
 	
 	debug("pacspire (%s %s)\n",__DATE__,__TIME__);
 	
@@ -481,7 +481,15 @@ int main(int argc, char** argv)
 	{
 		debug("attempting to install package %s\n",argv[1]);
 		if(installPackage(argv[1]) == -1)
-			show_msgbox("pacspire","The installation failed. Read the log for more details.");
+		{
+			if(show_msgbox_2b("pacspire","The installation failed. Read the log for more details.","OK","View Log") == 2)
+			{
+				clrscr();
+				debug("Press any key to exit...");
+				nio_fflush(&c);
+				wait_key_pressed();
+			}
+		}
 		else
 			show_msgbox("pacspire","The installation was successful.");
 	}
@@ -497,13 +505,7 @@ int main(int argc, char** argv)
 		show_msgbox("pacspire","pacspire has been installed. Click on a package to install it.");
 	}
 	
-	#ifdef DEBUG
-	debug("Press any key to exit...");
-	nio_fflush(nio_get_default());
-	nio_free_stdio();
-	wait_key_pressed();
-	#endif
-	
+	nio_free(&c);
 	refresh_osscr();
 	return 0;
 }
