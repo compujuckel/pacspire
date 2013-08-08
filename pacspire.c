@@ -188,7 +188,7 @@ int writeFileContent(const char* filename, void* buffer, size_t count)
 	return 0;
 }
 
-void createDir(const char *dir) {
+int createDir(const char *dir) {
 	char tmp[100];
 	char *p = NULL;
 	size_t len;
@@ -202,11 +202,15 @@ void createDir(const char *dir) {
 	{
 		if(*p == '/' || *p == '\\') {
 			*p = '\0';
-			mkdir(tmp, 0755);
+			if(mkdir(tmp, 0755) == -1 && errno != 17)
+				return -1;
 			*p = '/';
 		}
 	}
-	mkdir(tmp, 0755);
+	if(mkdir(tmp, 0755) == -1 && errno != 17)
+		return -1;
+		
+	return 0;
 }
 
 int removeDir(char* directory)
@@ -416,33 +420,52 @@ int installPackage(char* file)
 		unz_file_info file_info;
 		unzGetCurrentFileInfo(uf,&file_info,filename,50,NULL,0,NULL,0);
 		
-		debug("Inflating file %s...",filename);
-		char* buffer = unzGetCurrentFileContent(uf);
-		if(buffer == NULL)
+		if(filename[strlen(filename)-1] == '/')
 		{
-			fail(" failed\n");
-			free(p);
-			unzClose(uf);
-			return -1;
+			debug("Creating directory %s...",filename);
+			char dir_path[60];
+			strcpy(dir_path,full_path);
+			strcat(dir_path,"/");
+			strcat(dir_path,filename);
+			if(createDir(dir_path) == -1)
+			{
+				fail(" failed\n");
+				free(p);
+				unzClose(uf);
+				return -1;
+			}
+			success(" done\n");
 		}
-		success(" done\n");
-		
-		debug("Writing content to file...");
-		char file_path[60];
-		strcpy(file_path,full_path);
-		strcat(file_path,"/");
-		strcat(file_path,filename);
-		if(writeFileContent(file_path,buffer,file_info.uncompressed_size) == -1)
+		else
 		{
-			fail(" failed\n");
+			debug("Inflating file %s...",filename);
+			char* buffer = unzGetCurrentFileContent(uf);
+			if(buffer == NULL)
+			{
+				fail(" failed\n");
+				free(p);
+				unzClose(uf);
+				return -1;
+			}
+			success(" done\n");
+			
+			debug("Writing content to file...");
+			char file_path[60];
+			strcpy(file_path,full_path);
+			strcat(file_path,"/");
+			strcat(file_path,filename);
+			if(writeFileContent(file_path,buffer,file_info.uncompressed_size) == -1)
+			{
+				fail(" failed\n");
+				free(buffer);
+				free(p);
+				unzClose(uf);
+				return -1;
+			}
+			success(" done\n");
+			
 			free(buffer);
-			free(p);
-			unzClose(uf);
-			return -1;
 		}
-		success(" done\n");
-		
-		free(buffer);
 	}
 	while(unzGoToNextFile(uf) == UNZ_OK);
 	
@@ -496,7 +519,10 @@ int main(int argc, char** argv)
 	else
 	{
 		debug("creating PACSPIRE_ROOT directory (%s)...",PACSPIRE_ROOT);
-		createDir(PACSPIRE_ROOT);
+		if(createDir(PACSPIRE_ROOT) == -1)
+		{
+			fail(" failed\n");
+		}
 		success(" done\n");
 		
 		debug("registering .pcs extension...");
