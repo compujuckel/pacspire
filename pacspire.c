@@ -278,7 +278,7 @@ int installPackage(char* file)
 	success(" done\n");
 	
 	debug("unzipping package info...");
-	void* buffer = unzGetFileContent(uf,"pkginfo.txt");
+	void* buffer = unzGetFileContent(uf,"pkginfo.txt.tns");
 	if(buffer == NULL)
 	{
 		fail(" failed\n");
@@ -313,10 +313,10 @@ int installPackage(char* file)
 	{
 		warn(" yes\n");
 		
-		debug("opening installed pkginfo.txt...");
+		debug("opening installed pkginfo.txt.tns...");
 		char pkginfo_path[60];
 		strcpy(pkginfo_path,full_path);
-		strcat(pkginfo_path,"/pkginfo.txt");
+		strcat(pkginfo_path,"/pkginfo.txt.tns");
 		buffer = getFileContent(pkginfo_path);
 		if(buffer == NULL)
 		{
@@ -327,7 +327,7 @@ int installPackage(char* file)
 		}
 		success(" done\n");
 		
-		debug("parsing installed pkginfo.txt...");
+		debug("parsing installed pkginfo.txt.tns...");
 		pkginfo* p2 = parsePackageInfo(buffer);
 		free(buffer);
 		if(p2 == NULL)
