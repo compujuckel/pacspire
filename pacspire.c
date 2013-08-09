@@ -264,6 +264,13 @@ int removeDir(char* directory)
 	return 0;
 }
 
+enum
+{
+	INSTALLATION_SUCCESS,
+	INSTALLATION_FAILED,
+	INSTALLATION_ABORTED
+};
+
 int installPackage(char* file)
 {
 	unzFile uf = NULL;
@@ -273,7 +280,7 @@ int installPackage(char* file)
 	if(uf == NULL)
 	{
 		fail(" failed\n");
-		return -1;
+		return INSTALLATION_FAILED;
 	}
 	success(" done\n");
 	
@@ -284,7 +291,7 @@ int installPackage(char* file)
 		fail(" failed\n");
 		unzClose(uf);
 		free(buffer);
-		return -1;
+		return INSTALLATION_FAILED;
 	}
 	success(" done\n");
 	
@@ -295,7 +302,7 @@ int installPackage(char* file)
 	{
 		fail(" failed\n");
 		unzClose(uf);
-		return -1;
+		return INSTALLATION_FAILED;
 	}
 	success(" done\n");
 	
@@ -323,7 +330,7 @@ int installPackage(char* file)
 			fail(" failed\n");
 			free(p);
 			unzClose(uf);
-			return -1;
+			return INSTALLATION_FAILED;
 		}
 		success(" done\n");
 		
@@ -335,30 +342,37 @@ int installPackage(char* file)
 			fail(" failed\n");
 			free(p);
 			unzClose(uf);
-			return -1;
+			return INSTALLATION_FAILED;
 		}
 		success(" done\n");
 		
 		debug("checking if the package is newer than the installed version...");
 		char message[200];
-		if(p->timestamp > p2->timestamp)
+		if(p->timestamp <= p2->timestamp)
 		{
-			success(" yes\n");
-			sprintf(message,"Do you want to update %s (%s -> %s)?",p->name,p2->version,p->version);
+			warn(" no\n");
+			sprintf(message,"You already have a newer or the same version of %s installed.",p->name);
+			if(show_msgbox_2b("pacspire",message,"OK","Force installation") == 1)
+			{
+				fail("Installation aborted\n");
+				free(p);
+				free(p2);
+				unzClose(uf);
+				return INSTALLATION_ABORTED;
+			}
 		}
 		else
 		{
-			warn(" no\n");
-			sprintf(message,"The installed version of %s (%s) is newer than the one you are trying to install (%s). Continue?",p->name,p2->version,p->version);	
-		}
-		
-		if(show_msgbox_2b("pacspire",message,"Yes","No") == 2)
-		{
-			fail("Installation aborted by user\n");
-			free(p);
-			free(p2);
-			unzClose(uf);
-			return -1;
+			success(" yes\n");
+			sprintf(message,"Do you want to update %s (%s -> %s)?",p->name,p2->version,p->version);
+			if(show_msgbox_2b("pacspire",message,"Yes","No") == 2)
+			{
+				fail("Installation aborted by user\n");
+				free(p);
+				free(p2);
+				unzClose(uf);
+				return INSTALLATION_ABORTED;
+			}
 		}
 		
 		free(p2);
@@ -369,7 +383,7 @@ int installPackage(char* file)
 			debug(" failed\n");
 			free(p);
 			unzClose(uf);
-			return -1;
+			return INSTALLATION_FAILED;
 		}
 		success(" done\n");
 	}
@@ -383,7 +397,7 @@ int installPackage(char* file)
 			fail("Installation aborted by user\n");
 			free(p);
 			unzClose(uf);
-			return -1;
+			return INSTALLATION_ABORTED;
 		}
 	}
 	
@@ -399,7 +413,7 @@ int installPackage(char* file)
 			fail(" failed\n");
 			free(p);
 			unzClose(uf);
-			return -1;
+			return INSTALLATION_FAILED;
 		}
 	}
 	success(" done\n");
@@ -410,7 +424,7 @@ int installPackage(char* file)
 		fail(" failed\n");
 		free(p);
 		unzClose(uf);
-		return -1;
+		return INSTALLATION_FAILED;
 	}
 	success(" done\n");
 	
@@ -432,7 +446,7 @@ int installPackage(char* file)
 				fail(" failed\n");
 				free(p);
 				unzClose(uf);
-				return -1;
+				return INSTALLATION_FAILED;
 			}
 			success(" done\n");
 		}
@@ -445,7 +459,7 @@ int installPackage(char* file)
 				fail(" failed\n");
 				free(p);
 				unzClose(uf);
-				return -1;
+				return INSTALLATION_FAILED;
 			}
 			success(" done\n");
 			
@@ -460,7 +474,7 @@ int installPackage(char* file)
 				free(buffer);
 				free(p);
 				unzClose(uf);
-				return -1;
+				return INSTALLATION_FAILED;
 			}
 			success(" done\n");
 			
@@ -482,7 +496,7 @@ int installPackage(char* file)
 	
 	free(p);
 	unzClose(uf);
-	return 0;
+	return INSTALLATION_SUCCESS;
 }
 
 int main(int argc, char** argv)
@@ -503,18 +517,25 @@ int main(int argc, char** argv)
 	if(argc > 1)
 	{
 		debug("attempting to install package %s\n",argv[1]);
-		if(installPackage(argv[1]) == -1)
+		switch(installPackage(argv[1]))
 		{
-			if(show_msgbox_2b("pacspire","The installation failed. Read the log for more details.","OK","View Log") == 2)
-			{
-				clrscr();
-				debug("Press any key to exit...");
-				nio_fflush(&c);
-				wait_key_pressed();
-			}
+			case INSTALLATION_ABORTED:
+				break;
+			
+			case INSTALLATION_SUCCESS:
+				show_msgbox("pacspire","The installation was successful.");
+				break;
+				
+			case INSTALLATION_FAILED:
+				if(show_msgbox_2b("pacspire","The installation failed. Read the log for more details.","OK","View Log") == 2)
+				{
+					clrscr();
+					debug("Press any key to exit...");
+					nio_fflush(&c);
+					wait_key_pressed();
+				}
+				break;
 		}
-		else
-			show_msgbox("pacspire","The installation was successful.");
 	}
 	else
 	{
