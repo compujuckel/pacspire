@@ -2,8 +2,8 @@
 #include "unzip.h"
 #include <nspireio.h>
 
-#define DEBUG_CONSOLE 1
-const char PACSPIRE_ROOT[] = "/documents/pacspire";
+#define DEBUG_CONSOLE 0
+const char PACSPIRE_ROOT[] = "/pacspire";
 
 typedef struct
 {
@@ -13,11 +13,21 @@ typedef struct
 
 typedef struct
 {
+	char name[30];
+	char program[15];
+} link;
+
+typedef struct
+{
 	char name[21];
 	char version[11];
 	unsigned int timestamp;
+	
 	int ext_count;
-	fileext *extensions;
+	fileext* extensions;
+	
+	int link_count;
+	link* links;
 } pkginfo;
 
 
@@ -36,6 +46,13 @@ typedef struct
 	nio_printf(s, ##__VA_ARGS__); \
 	nio_color(nio_get_default(),NIO_COLOR_WHITE,NIO_COLOR_BLACK);
 
+void freePackageInfo(pkginfo* p)
+{
+	free(p->extensions);
+	free(p->links);
+	free(p);
+}
+	
 pkginfo* parsePackageInfo(char* buffer)
 {
 	char* line;
@@ -45,6 +62,8 @@ pkginfo* parsePackageInfo(char* buffer)
 	p->timestamp = 0;
 	p->ext_count = 0;
 	p->extensions = NULL;
+	p->link_count = 0;
+	p->links = NULL;
 	
 	line = strtok(buffer,"\r\n");
 	while(line != NULL)
@@ -54,8 +73,7 @@ pkginfo* parsePackageInfo(char* buffer)
 		int delimiter_pos = strcspn(line,"=");
 		if(delimiter_pos == len)
 		{
-			free(p->extensions);
-			free(p);
+			freePackageInfo(p);
 			return NULL;
 		}
 		
@@ -75,8 +93,7 @@ pkginfo* parsePackageInfo(char* buffer)
 			p->timestamp = (unsigned int)strtoul(&line[delimiter_pos+1],NULL,0);
 			if(p->timestamp == 0)
 			{
-				free(p->extensions);
-				free(p);
+				freePackageInfo(p);
 				return NULL;
 			}
 		}
@@ -90,10 +107,19 @@ pkginfo* parsePackageInfo(char* buffer)
 		{
 			strncpy(p->extensions[p->ext_count-1].program,&line[delimiter_pos+1],15);
 		}
+		else if(strcmp(line, "link_name") == 0)
+		{
+			p->link_count++;
+			p->links = realloc(p->links,p->link_count*sizeof(link));
+			strncpy(p->links[p->link_count-1].name,&line[delimiter_pos+1],30);
+		}
+		else if(strcmp(line, "link_prog") == 0)
+		{
+			strncpy(p->links[p->link_count-1].program,&line[delimiter_pos+1],15);
+		}
 		else
 		{
-			free(p->extensions);
-			free(p);
+			freePackageInfo(p);
 			return NULL;
 		}
 		
@@ -102,8 +128,7 @@ pkginfo* parsePackageInfo(char* buffer)
 	
 	if(p->name[0] == '\0' || p->version[0] == '\0' || p->timestamp == 0)
 	{
-		free(p->extensions);
-		free(p);
+		freePackageInfo(p);
 		return NULL;
 	}
 	
@@ -312,9 +337,7 @@ int installPackage(char* file)
 	
 	debug("checking if package is already installed...");
 	char full_path[50];
-	strcpy(full_path,PACSPIRE_ROOT);
-	strcat(full_path,"/");
-	strcat(full_path,p->name);
+	sprintf(full_path,"%s/%s",PACSPIRE_ROOT,p->name);
 	struct stat s;
 	if(stat(full_path,&s) == 0)
 	{
@@ -322,13 +345,12 @@ int installPackage(char* file)
 		
 		debug("opening installed pkginfo.txt.tns...");
 		char pkginfo_path[60];
-		strcpy(pkginfo_path,full_path);
-		strcat(pkginfo_path,"/pkginfo.txt.tns");
+		sprintf(pkginfo_path,"%s/pkginfo.txt.tns",full_path);
 		buffer = getFileContent(pkginfo_path);
 		if(buffer == NULL)
 		{
 			fail(" failed\n");
-			free(p);
+			freePackageInfo(p);
 			unzClose(uf);
 			return INSTALLATION_FAILED;
 		}
@@ -340,7 +362,7 @@ int installPackage(char* file)
 		if(p2 == NULL)
 		{
 			fail(" failed\n");
-			free(p);
+			freePackageInfo(p);
 			unzClose(uf);
 			return INSTALLATION_FAILED;
 		}
@@ -355,8 +377,8 @@ int installPackage(char* file)
 			if(show_msgbox_2b("pacspire",message,"OK","Force installation") == 1)
 			{
 				fail("Installation aborted\n");
-				free(p);
-				free(p2);
+				freePackageInfo(p);
+				freePackageInfo(p2);
 				unzClose(uf);
 				return INSTALLATION_ABORTED;
 			}
@@ -368,20 +390,20 @@ int installPackage(char* file)
 			if(show_msgbox_2b("pacspire",message,"Yes","No") == 2)
 			{
 				fail("Installation aborted by user\n");
-				free(p);
-				free(p2);
+				freePackageInfo(p);
+				freePackageInfo(p2);
 				unzClose(uf);
 				return INSTALLATION_ABORTED;
 			}
 		}
 		
-		free(p2);
+		freePackageInfo(p2);
 		
 		debug("Removing previous installation...");
 		if(removeDir(full_path) == -1)
 		{
 			debug(" failed\n");
-			free(p);
+			freePackageInfo(p);
 			unzClose(uf);
 			return INSTALLATION_FAILED;
 		}
@@ -395,7 +417,7 @@ int installPackage(char* file)
 		if(show_msgbox_2b("pacspire",message,"Install","Cancel") == 2)
 		{
 			fail("Installation aborted by user\n");
-			free(p);
+			freePackageInfo(p);
 			unzClose(uf);
 			return INSTALLATION_ABORTED;
 		}
@@ -411,7 +433,7 @@ int installPackage(char* file)
 		else
 		{
 			fail(" failed\n");
-			free(p);
+			freePackageInfo(p);
 			unzClose(uf);
 			return INSTALLATION_FAILED;
 		}
@@ -422,7 +444,7 @@ int installPackage(char* file)
 	if(unzGoToFirstFile(uf) != UNZ_OK)
 	{
 		fail(" failed\n");
-		free(p);
+		freePackageInfo(p);
 		unzClose(uf);
 		return INSTALLATION_FAILED;
 	}
@@ -438,13 +460,11 @@ int installPackage(char* file)
 		{
 			debug("Creating directory %s...",filename);
 			char dir_path[60];
-			strcpy(dir_path,full_path);
-			strcat(dir_path,"/");
-			strcat(dir_path,filename);
+			sprintf(dir_path,"%s/%s",full_path,filename);
 			if(createDir(dir_path) == -1)
 			{
 				fail(" failed\n");
-				free(p);
+				freePackageInfo(p);
 				unzClose(uf);
 				return INSTALLATION_FAILED;
 			}
@@ -457,7 +477,7 @@ int installPackage(char* file)
 			if(buffer == NULL)
 			{
 				fail(" failed\n");
-				free(p);
+				freePackageInfo(p);
 				unzClose(uf);
 				return INSTALLATION_FAILED;
 			}
@@ -465,14 +485,12 @@ int installPackage(char* file)
 			
 			debug("Writing content to file...");
 			char file_path[60];
-			strcpy(file_path,full_path);
-			strcat(file_path,"/");
-			strcat(file_path,filename);
+			sprintf(file_path,"%s/%s",full_path,filename);
 			if(writeFileContent(file_path,buffer,file_info.uncompressed_size) == -1)
 			{
 				fail(" failed\n");
 				free(buffer);
-				free(p);
+				freePackageInfo(p);
 				unzClose(uf);
 				return INSTALLATION_FAILED;
 			}
@@ -494,14 +512,36 @@ int installPackage(char* file)
 		}
 	}
 	
-	free(p);
+	if(p->link_count > 0)
+	{
+		int i;
+		for(i = 0; i < p->link_count; i++)
+		{
+			debug("Creating link (%s.lnk.tns -> %s)...",p->links[i].name,p->links[i].program);
+			char link_path[60];
+			char exec_path[60];
+			
+			sprintf(link_path,"/documents/%s.lnk.tns",p->links[i].name);
+			sprintf(exec_path,"%s/%s",full_path,p->links[i].program);
+			if(writeFileContent(link_path,exec_path,strlen(exec_path)) == -1)
+			{
+				fail(" failed\n");
+				freePackageInfo(p);
+				unzClose(uf);
+				return INSTALLATION_FAILED;
+			}
+			success(" done\n");
+		}
+	}
+	
+	freePackageInfo(p);
 	unzClose(uf);
 	return INSTALLATION_SUCCESS;
 }
 
 int main(int argc, char** argv)
 {
-	assert_ndless_rev(797);
+	assert_ndless_rev(877);
 	
 	nio_console c;
 	#if DEBUG_CONSOLE == 1
@@ -516,25 +556,36 @@ int main(int argc, char** argv)
 	
 	if(argc > 1)
 	{
-		debug("attempting to install package %s\n",argv[1]);
-		switch(installPackage(argv[1]))
+		if(strstr(argv[1],".pcs.tns") != NULL)
 		{
-			case INSTALLATION_ABORTED:
-				break;
-			
-			case INSTALLATION_SUCCESS:
-				show_msgbox("pacspire","The installation was successful.");
-				break;
+			debug("attempting to install package %s\n",argv[1]);
+			switch(installPackage(argv[1]))
+			{
+				case INSTALLATION_ABORTED:
+					break;
 				
-			case INSTALLATION_FAILED:
-				if(show_msgbox_2b("pacspire","The installation failed. Read the log for more details.","OK","View Log") == 2)
-				{
-					clrscr();
-					debug("Press any key to exit...");
-					nio_fflush(&c);
-					wait_key_pressed();
-				}
-				break;
+				case INSTALLATION_SUCCESS:
+					show_msgbox("pacspire","The installation was successful.");
+					break;
+					
+				case INSTALLATION_FAILED:
+					if(show_msgbox_2b("pacspire","The installation failed. Read the log for more details.","OK","View Log") == 2)
+					{
+						clrscr();
+						debug("Press any key to exit...");
+						nio_fflush(&c);
+						wait_key_pressed();
+					}
+					break;
+			}
+		}
+		else if(strstr(argv[1],".lnk.tns") != NULL)
+		{
+			char* exec_path = getFileContent(argv[1]);
+			debug("passing control to %s\n",exec_path);
+			int ret = nl_exec(exec_path,0,NULL);
+			debug("%s returned with status code %d\n",exec_path,ret);
+			wait_key_pressed();
 		}
 	}
 	else
@@ -548,6 +599,10 @@ int main(int argc, char** argv)
 		
 		debug("registering .pcs extension...");
 		cfg_register_fileext("pcs","pacspire");
+		success(" done\n");
+		
+		debug("registering .lnk extension...");
+		cfg_register_fileext("lnk","pacspire");
 		success(" done\n");
 		show_msgbox("pacspire","pacspire has been installed. Click on a package to install it.");
 	}
